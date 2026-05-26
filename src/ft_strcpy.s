@@ -14,7 +14,7 @@ section .text
 ;				dest is not large enough to hold src (buffer overflow)
 ;				either argument is null or otherwise invalid
 ft_strcpy:
-	mov 	rax, 0				; Initialize length counter to 0
+	mov 	rax, 0				; Initialise length counter to 0
 
 comparison:
 	cmp		BYTE [rsi + rax], 0	; Compare the byte at rsi plus current count of bytes

@@ -6,12 +6,12 @@ section .text
 ;					rdi: input argument (x86-64 System V ABI calling convention)
 ; As with libft, loop through the pointer until we reach \0. Return count.
 ft_strlen:
-	mov 	rax, 0				; Initialize length counter to 0
+	mov 	rax, 0				; Initialise length counter to 0
 
 comparison:
-	cmp		BYTE [rdi + rax], 0	; compare the byte at rdi plus current count of bytes
+	cmp		BYTE [rdi + rax], 0	; Compare the byte at rdi plus current count of bytes
 								; 	with null character
-	je		finished			; if current byte is equal to \0, we are done
+	je		finished			; If current byte is equal to \0, we are done
 								; otherwise fall through to increment
 
 increment:
