@@ -43,7 +43,7 @@ In this work, the calling convention affects the following:
 - Which registers behave in specific ways
 	- Caller-saved vs. callee-saved registers. 
 		- Caller-saved: the called function doesn't need to preserve the value of the register. Our four argument registers are this type.
-		- Callee-saved: the called function must restore the register's value before returning.
+		- Callee-saved: the called function must restore the register's value before returning. This is a *gentleman's agreement* that the programmer must oblige.
 
 #### Syntax
 
@@ -77,6 +77,7 @@ Basic functionality of each function must match that of libc and the man page.
 
 Implementation is in code. This section is for notes on new concepts and other interesting things.
 
+
 ### ft_strlen
 
 #### Idea
@@ -93,6 +94,8 @@ Undefined behaviours:
 
 Everything at this point is new.
 
+`; comments`: Comments are preceeded by semicolons.
+
 `section .text`
 
 - `section`: is a way for code to be organised into segments.
@@ -103,7 +106,7 @@ Everything at this point is new.
 - `global`: makes the given function name visible to the linker
 - `ft_strlen`: is the only label that will be visible to the linker
 
-`ft_strlen`: a label that can be used to jump to or in this case as a global export
+`ft_strlen:`: a label that can be used to jump to or in this case as a global export
 
 `mov rax, 0`
 
@@ -129,6 +132,7 @@ Everything at this point is new.
 
 `ret`: return. Returns `rax` as result.
 
+
 ### ft_strcpy
 
 #### Idea
@@ -146,6 +150,7 @@ Undefined behaviours:
 
 - `cl`: This is the lowest byte of the full 64-bit register `rcx`. This register is used as a middle-man. x86-64 does not allow copying between memory locations.
 - `rsi`: Second argument register.
+
 
 ### ft_strcmp
 
@@ -165,3 +170,65 @@ Undefined behaviours:
 - `movzx`: move with zero extension. Moves a value to a larger register and fills upper bits with zeroes.
 - `eax, ecx`: the lower 32-bits of the rax and rcx registers respectively.
 - `sub`: subtract second operand from first, place result in first.
+
+
+### ft_write
+
+#### Idea
+
+Make a syscall to sys_write (ID: 1) with the arguments passed to the function. If successful return the number of bytes written. On error, return -1 and set errno.
+
+#### New concepts
+
+`syscall`: runs a standard system command. Its parameters are specific registers set before calling. For everything we do in this project the registers `rax`, `rdi`, `rsi` and `rdx` will be all that are used.
+
+`neg`: negates its operand.
+
+##### Error checking (errCheck)
+
+`-4095`: The limit of the error number range in Linux. All errnos have to fit within -1 and -4095.
+
+`jbe`: jump if below or equal. This is the unsigned version of `jle`.
+
+Initially I was thinking to simply check if the `syscall` return in `rax` was negative and then follow the setError path. However, after some reading about how Linux handles errors it seems that this can lead to false results for some edge cases.
+
+The simple negative check would likely work fine for a sys_write call, however for calls that return pointers it could lead to false positives. This is because in the upper addresses the sign bit is set and a signed check would return negative in that case.
+
+Using the -4095 number simply checks that the errno is within the expected error range. The kernel reserves this small range strictly for error number checking.
+
+More information is available in the [GNU C documentation](https://sourceware.org/glibc/manual/latest/html_node/Error-Reporting.html) and is mentioned briefly in the [Linux source](https://github.com/torvalds/linux/blob/master/tools/include/linux/err.h)
+
+Documentation is really sparse for this sort of specific thing. There is reams of information about how to write assembly of various different flavours. But finding system specific information is more of a challenge and is spread out over many more sources.
+
+##### Callee saved registers
+
+```
+Within setError:
+push	r13
+	...
+pop	r13
+```
+
+The above code snippet seems pointless. However, I am using a callee-saved register (lucky `r13`) to store the error number value from `rax` before using `rax` for another call.
+
+Callee-saved registers require the programmer to save their value and reapply it after I have finished with the register. Regardless of if I use the register for anything other than brief storage.
+
+This snippet is only needed in the setError section because r13 will only ever be used if an error needs setting.
+
+Assembly has a few things like this, that seem kind of "pointless" but are necessary under certain circumstances, so we do them under all circumstances.
+
+##### External functions
+
+`extern  __errno_location`
+
+- `extern`: tells the linker to expect a symbol from outside of the current file. The linker will find it from glibc.
+- `__errno_location`: is the function that returns the pointer to the current thread's errno location in memory. It outputs to rax, as is standard.
+
+`call	__errno_location wrt ..plt`
+
+- `call`: calls the function given as first operand. Call differs from `jmp` in that it executes code it is linked to then returns to where the call was made. It changes the call stack before executing the function. It is used to run code that returns something back.
+- `wrt`: "with respect to". A NASM specific operator that says "calculate this address relative to something".
+- `..`: denotes a NASM built in symbol rather than a user defined label.
+- `plt`: "Procedure Linkage Table". A section the linker adds to the binary. Essentially a lookup table for external functions. Libraries are loaded to random locations in memory, so the binary needs a way to know where to find them. The PLT directs the execution to check dynamically where the address (of __errno_location in this case) is. This is stored, so future calls go straight there.
+
+`mov		DWORD [rax], r13d`: write the lower 4 bytes of r13 to the location pointed to by rax. errno is a 32-bit integer, whereas r13 is a 64-bit register. Simply using `mov [rax], r13` would write 64-bits into a 32-bit space, corrupting the 4 bytes of memory immediately following errno.
