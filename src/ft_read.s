@@ -1,5 +1,5 @@
 section .text
-	global ft_write
+	global ft_read
 	extern __errno_location
 
 ; Registers in use:
@@ -9,7 +9,7 @@ section .text
 ;					rdx: syscall count, input argument count
 ;					r13: temporary register for errno handling
 ;					Defined by x86-64 System V ABI calling convention
-; prototype: ssize_t write(int fd, const void buf[.count], size_t count)
+; prototype: ssize_t read(int fd, void buf[.count], size_t count)
 ;
 ; The syscall is simple, all we need is already placed into the argument registers.
 ; The return of the syscall is stored in rax as is standard. From this we need
@@ -17,14 +17,14 @@ section .text
 ; The syscall returns a negative value if there is an error, and from this we
 ; 	extract the errno and set it.
 
-ft_write:
-	mov		rax, 1				; Syscall ID for write is 1
+ft_read:
+	mov		rax, 0				; Syscall ID for read is 0
 	syscall						; Make the syscall with the arguments in rdi, rsi, rdx
 								; The return value of the syscall is now in rax.
 
 errCheck:
 	cmp		rax, -4095			; Check if rax is in the error range (-1 to -4095)
-								; For sys_write, a simple negative check would be OK,
+								; For sys_read, a simple negative check would be OK,
 								; 	but that is not common practice
 	jbe		finished			; If below -4095 unsigned, it's a valid return value
 								; 	return the value in rax. Otherwise, fall through

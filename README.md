@@ -22,7 +22,7 @@ According to the subject we have to recreate several libc functions in assembly 
 
 Basic requirements:
 
-- Architecture: x86-64
+- Architecture: [x86-64](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html)
 - Calling convention: [System V ABI](https://www.sco.com/developers/gabi/latest/contents.html)
 - Syntax: [Intel](https://en.wikipedia.org/wiki/X86_assembly_language#Syntax)
 - Assembler: [NASM (The Netwide Assembler)](https://www.nasm.us/docs/3.01/)
@@ -50,7 +50,8 @@ In this work, the calling convention affects the following:
 In the x86-64 world there are two main syntaxes, Intel and AT&T. There are two main differences between them.
 
 - Operand order: Intel has the destination first, source second. AT&T vice versa.
-- Decoration: AT&T adds prefixes to registers (%) and immediate values ($). Suffixes indicating the size are added to instructions (eg. q for quad word).
+- Decoration: AT&T adds prefixes to registers (%) and immediate values ($).
+- Size specification: AT&T adds a suffix to the instruction indicating the register size (eg. d for double word). Whereas Intel requires the data size to be stated as a word (eg. DWORD for double word), but only if it is different to the default size of the register.
 
 Example using the move instruction.
 
@@ -69,9 +70,10 @@ It is required to submit a main to test these functions.
 
 Where relevant `errno` must be set and syscall errors must be handled appropriately.
 
-Calling of ___error or errno_location is permitted.
+Calling of __errno_location is permitted.
 
 Basic functionality of each function must match that of libc and the man page.
+
 
 ## The functions
 
@@ -79,6 +81,8 @@ Implementation is in code. This section is for notes on new concepts and other i
 
 
 ### ft_strlen
+
+Prototype: `size_t strlen(const char *s);`
 
 #### Idea
 
@@ -108,32 +112,94 @@ Everything at this point is new.
 
 `ft_strlen:`: a label that can be used to jump to or in this case as a global export
 
+##### Registers
+
+x86-64 has 16 general purpose registers: `rax`, `rbx`, `rcx`, `rdx`, `rsi`, `rdi`, `rsp`, `rbp`, and `r8` to `r15`. These are all 64-bits (8 bytes) wide.
+
+These registers can hold both addresses and program data.
+
+Most instructions operate on these registers either directly on the data they store or on the data the address they store points to.
+
 `mov rax, 0`
 
 - `mov`: move data instruction (actually copies from source to destination, leaving the source unchanged)
 - `rax`: "Accumulator" register, default return register. Used here as a counter.
 
+By default an instruction performs its action on the whole 64-bits of its operand register(s). However, it may be desired to only perform these actions on a smaller data length. This is accomplished by specifying the size of data being acted.
+
+Size specifiers can be BYTE (8-bits), WORD (16-bits), DWORD (32-bits) or QWORD (64-bits).
+
+A register given inside a pair of square brackets eg. `[rax]` is "dereferenced", meaning it points to the contents of the address stored in the register. Operations performed on dereferenced registers is performed on the data it is pointing to.
+
+Without brackets any operations will see the data actually stored in the register itself (address, counter, so on).
+
+Arithmetic can be performed on registers used as operands for instructions. `rax + 1` adds 1 to the value held in rax. `rdi + rax` adds rax to rdi. `[rdi + rax]` will point to the data held at address rdi plus rax.
+
 `cmp BYTE [rdi + rax], 0`
 
-- `cmp`: compare values. Store the result of subtracting source from destination in the RFLAGS register.
-- `BYTE`: read the byte at the given address. This reads the first byte of the 8 byte address.
+- `cmp`: compare values. Performs a subtraction but discards the result, updates the RFLAGS register based on what the result would have been. These flags can be used later to control program flow.
 - `[rdi + rax]`: `rdi` register (first argument) added to the current value of the `rax` counter register. This combined with `BYTE` ensures that the count marches along the input string bytewise.
-- `[ ] notation`: like with C, we have pointers and dereferencing. This means the contents of the address inside the brackets.
 - `0`: If a zero (null) byte is found, the end of the string has been reached.
+
+##### Jumps
+
+After a comparison operation has been performed it is generally desired to do something with the result. A common action is to jump to a part of the code depending on the result.
+
+`jmp` is a common jump that will move execution to the label, register or memory address given as its operand. However there are numerous other jumps that depend on the results of comparison operations.
+
+###### Common x86 jumps
+
+A list of jumps relevant to this project, plus a few others of interest.
+
+Flag refers to the data stored in the RFLAGS register.
+
+**Equality**
+| Mnemonic | Meaning | Flag |
+|----------|---------|------|
+| `je` / `jz` | Jump if equal / zero | ZF = 1 |
+| `jne` / `jnz` | Jump if not equal / not zero | ZF = 0 |
+
+**Signed comparisons**
+| Mnemonic | Meaning | Flags |
+|----------|---------|-------|
+| `jg` / `jnle` | Jump if greater | ZF = 0, SF = OF |
+| `jge` / `jnl` | Jump if greater or equal | SF = OF |
+| `jl` / `jnge` | Jump if less | SF ≠ OF |
+| `jle` / `jng` | Jump if less or equal | ZF = 1 or SF ≠ OF |
+
+**Unsigned comparisons**
+| Mnemonic | Meaning | Flags |
+|----------|---------|-------|
+| `ja` / `jnbe` | Jump if above | CF = 0, ZF = 0 |
+| `jae` / `jnb` | Jump if above or equal | CF = 0 |
+| `jb` / `jnae` | Jump if below | CF = 1 |
+| `jbe` / `jna` | Jump if below or equal | CF = 1 or ZF = 1 |
+
+**Flag checks**
+| Mnemonic | Meaning | Flag |
+|----------|---------|------|
+| `jo` | Jump if overflow | OF = 1 |
+| `jno` | Jump if no overflow | OF = 0 |
+| `js` | Jump if sign (negative) | SF = 1 |
+| `jns` | Jump if no sign (positive) | SF = 0 |
+| `jc` | Jump if carry | CF = 1 |
+| `jnc` | Jump if no carry | CF = 0 |
+| `jp` / `jpe` | Jump if parity even | PF = 1 |
+| `jnp` / `jpo` | Jump if parity odd | PF = 0 |
 
 `je finished`
 
 - `je`: jump if equal. Jumps to its operand if the previous comparison resulted in equality.
 - `finished`: the label to jump to.
 
-`inc rax`: increment the value of `rax`. rax += 1.
+`inc rax`: increment the value of `rax`. rax = rax + 1.
 
-`jmp`: a plain jump to the label given as operand.
-
-`ret`: return. Returns `rax` as result.
+`ret`: return. By convention, the caller reads `rax` as the result.
 
 
 ### ft_strcpy
+
+Prototype: `char *strcpy(char *restrict dst, const char *restrict src);`
 
 #### Idea
 
@@ -148,11 +214,54 @@ Undefined behaviours:
 
 #### New concepts
 
-- `cl`: This is the lowest byte of the full 64-bit register `rcx`. This register is used as a middle-man. x86-64 does not allow copying between memory locations.
+##### Register bytes
+
+In addition to operating on the full 64-bit register, instructions can operate on smaller portions of it. Data widths of byte (8-bit), word (16-bit), doubleword (32-bit) and quadword (64-bit) are supported and can be stored in the register.
+
+The 16 general purpose registers can be specifically referenced to the above sizes.
+
+###### RAX as an example
+
+| Width      | Name  | Covers |
+|------------|-------|--------|
+| 64-bit     | `rax` | bytes 7–0 (all 8 bytes) |
+| 32-bit     | `eax` | bytes 3–0 (lower half) |
+| 16-bit     | `ax`  | bytes 1–0 (lowest 2 bytes) |
+| 8-bit high | `ah`  | byte 1 |
+| 8-bit low  | `al`  | byte 0 |
+
+###### Equivalents for registers used in this project
+
+| 64-bit | 32-bit | 16-bit | 8-bit low | 8-bit high |
+|--------|--------|--------|-----------|------------|
+| `rax`  | `eax`  | `ax`   | `al`      | `ah`       |
+| `rbx`  | `ebx`  | `bx`   | `bl`      | `bh`       |
+| `rcx`  | `ecx`  | `cx`   | `cl`      | `ch`       |
+| `rdx`  | `edx`  | `dx`   | `dl`      | `dh`       |
+| `rsi`  | `esi`  | `si`   | `sil`     | —          |
+| `rdi`  | `edi`  | `di`   | `dil`     | —          |
+| `rsp`  | `esp`  | `sp`   | `spl`     | —          |
+| `rbp`  | `ebp`  | `bp`   | `bpl`     | —          |
+| `r8`   | `r8d`  | `r8w`  | `r8b`     | —          |
+| `r9`   | `r9d`  | `r9w`  | `r9b`     | —          |
+| `r10`  | `r10d` | `r10w` | `r10b`    | —          |
+| `r11`  | `r11d` | `r11w` | `r11b`    | —          |
+| `r12`  | `r12d` | `r12w` | `r12b`    | —          |
+| `r13`  | `r13d` | `r13w` | `r13b`    | —          |
+| `r14`  | `r14d` | `r14w` | `r14b`    | —          |
+| `r15`  | `r15d` | `r15w` | `r15b`    | —          |
+
+Writing to a 32-bit variant automatically zeros out the upper 32-bits of the full 64-bits. Any value previously held in those upper bits is lost.
+
+`mov cl, BYTE [rsi + rax]`
+
 - `rsi`: Second argument register.
+- `cl`: This is the lowest byte of the full 64-bit register `rcx`. This register is used as a middle-man. Necessary because x86-64 does not allow copying between memory locations.
 
 
 ### ft_strcmp
+
+Prototype: `int strcmp(const char *s1, const char *s2);`
 
 #### Idea
 
@@ -166,13 +275,13 @@ Undefined behaviours:
 
 #### New concepts
 
-- `jne`: jump if not equal. Jumps to its operand if the previous comparison resulted in inequality.
 - `movzx`: move with zero extension. Moves a value to a larger register and fills upper bits with zeroes.
-- `eax, ecx`: the lower 32-bits of the rax and rcx registers respectively.
 - `sub`: subtract second operand from first, place result in first.
 
 
 ### ft_write
+
+Prototype: `ssize_t write(int fd, const void buf[.count], size_t count);`
 
 #### Idea
 
@@ -196,7 +305,7 @@ The simple negative check would likely work fine for a sys_write call, however f
 
 Using the -4095 number simply checks that the errno is within the expected error range. The kernel reserves this small range strictly for error number checking.
 
-More information is available in the [GNU C documentation](https://sourceware.org/glibc/manual/latest/html_node/Error-Reporting.html) and is mentioned briefly in the [Linux source](https://github.com/torvalds/linux/blob/master/tools/include/linux/err.h)
+More information is available in the [GNU C documentation](https://sourceware.org/glibc/manual/latest/html_node/Error-Reporting.html) the [Linux Standard Base 5.0 specification](http://refspecs.linux-foundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/baselib---errno-location.html) and is mentioned briefly in the [Linux source](https://github.com/torvalds/linux/blob/master/tools/include/linux/err.h)
 
 Documentation is really sparse for this sort of specific thing. There is reams of information about how to write assembly of various different flavours. But finding system specific information is more of a challenge and is spread out over many more sources.
 
@@ -232,3 +341,66 @@ Assembly has a few things like this, that seem kind of "pointless" but are neces
 - `plt`: "Procedure Linkage Table". A section the linker adds to the binary. Essentially a lookup table for external functions. Libraries are loaded to random locations in memory, so the binary needs a way to know where to find them. The PLT directs the execution to check dynamically where the address (of __errno_location in this case) is. This is stored, so future calls go straight there.
 
 `mov		DWORD [rax], r13d`: write the lower 4 bytes of r13 to the location pointed to by rax. errno is a 32-bit integer, whereas r13 is a 64-bit register. Simply using `mov [rax], r13` would write 64-bits into a 32-bit space, corrupting the 4 bytes of memory immediately following errno.
+
+
+### ft_read
+
+Prototype: `ssize_t read(int fd, void buf[.count], size_t count);`
+
+This function is the same as ft_write. The only difference is that it uses syscall ID 0 instead of ID 1.
+
+
+### ft_strdup
+
+Prototype: `char *strdup(const char *s);`
+
+#### Idea
+
+Duplicate the string into heap allocated memory. This will require three external functions. ft_strlen(), ft_strcpy() and malloc().
+
+If the memory allocation fails then malloc() returns null and sets errno.
+
+Undefined behaviours:
+
+- String is not `\0` terminated.
+- String pointer is NULL or invalid.
+
+#### New concepts
+
+Using custom functions as externals, is very much like using system functions as externals. I use ft_strlen() and ft_strcpy() from the libasm.a library.
+
+```
+extern	ft_strlen
+extern	ft_strcpy
+	...
+call	ft_strlen
+	...
+call	ft_strcpy
+```
+
+##### Testing malloc() failure with LD_PRELOAD
+
+Using a shared library that temporarily replaces malloc(). The following C code "replaces" malloc.
+
+```
+// fake_malloc.c
+#include <stdlib.h>
+#include <errno.h>
+
+void *malloc(size_t size)
+{
+	errno = ENOMEM;
+	return NULL;
+}
+```
+
+Compile the library and then run the test program.
+
+```
+gcc -shared fake_malloc.c -o fake_malloc.so
+LD_PRELOAD=./fake_malloc.so ./test.out
+```
+
+`LD_PRELOAD` tells the linker to load the `fake_malloc.so` shared object library before any others. Anything defined in that library replaces the system standard for the duration of the programs execution.
+
+In the above case it replaces malloc(), forcing every allocation to fail with `ENOMEM`. This allows for NULL and errno testing without needing to artificially exhaust system memory.
