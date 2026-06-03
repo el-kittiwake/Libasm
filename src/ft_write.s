@@ -35,7 +35,7 @@ setError:
 	neg		rax							; Negate rax to get the positive errno value
 	mov		r13, rax					; Move the errno value to r13 for later use
 	call	__errno_location wrt ..plt	; Get the address of errno and store it in rax
-	mov		DWORD [rax], r13d			; Set errno to the value in r13d (the lower 32 bits of r13)
+	mov		[rax], r13d			; Set errno to the value in r13d (the lower 32 bits of r13)
 	mov		rax, -1						; Set return value to -1 to indicate an error
 	pop		r13							; Restore r13 from the stack
 

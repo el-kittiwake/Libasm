@@ -23,8 +23,8 @@ comparison:
 								;	otherwise fall through to copy and increment
 
 copy:
-	mov cl, BYTE [rsi + rax]	; Copy src byte + rax to lower byte of rcx (cl)
-	mov BYTE [rdi + rax], cl	; Copy lower byte of rcx (cl)
+	mov cl, [rsi + rax]	; Copy src byte + rax to lower byte of rcx (cl)
+	mov [rdi + rax], cl	; Copy lower byte of rcx (cl)
 								; This is needed because x86-64 does not allow
 								; 	direct memory to memory copy, so we must use
 								; 	an intermediary.
@@ -35,5 +35,5 @@ increment:
 
 finished:
 	mov BYTE [rdi + rax], 0		; Add null terminator to last byte
-	mov rax, rdi				; Copy pointer at rsi to rax for return
+	mov rax, rdi				; Copy pointer at rdi to rax for return
 	ret							; Return the pointer to dest in rax

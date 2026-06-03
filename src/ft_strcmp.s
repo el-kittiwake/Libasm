@@ -17,10 +17,10 @@ ft_strcmp:
 	mov		rax, 0					; Initialise length counter to 0
 
 prepareBytes:
-	mov		cl, BYTE [rsi + rax]	; Copy s2 byte + rax to lower byte of rcx (cl)
+	mov		cl, [rsi + rax]			; Copy s2 byte + rax to lower byte of rcx (cl)
 
 comparison:
-	cmp		cl, BYTE [rdi + rax]	; Compare the current bytes of s1 and s2
+	cmp		cl, [rdi + rax]			; Compare the current bytes of s1 and s2
 	jne		subtract				; If bytes are not equal, we are done, move to end
 									; 	Otherwise, fall through to continue comparing
 	cmp		BYTE [rdi + rax], 0		; Compare the current byte at rdi with null character
