@@ -1,7 +1,8 @@
 *.o
-*.c
-*test*
 *.a
 *.out
 *.json
 *.so
+*test*
+*fake*
+*junk*
