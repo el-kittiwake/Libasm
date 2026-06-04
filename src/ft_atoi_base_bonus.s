@@ -146,3 +146,5 @@ convertNumber:
 	imul	rax, r12				; Base conversion. r = (r * b) + value
 	add		rax, rcx
 	jmp		checkNumberEndIncrement
+
+section .note.GNU-stack noalloc noexec nowrite progbits

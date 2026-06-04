@@ -1,41 +1,57 @@
 section .text
 	global ft_strdup
 	extern ft_strlen
-	extern ft_strcpy
 	extern malloc
 
 ; Registers in use:
-;					rax: output, counter
-;					rdi: input string pointer (*s)
+;			rax: output / malloc return value / ft_strlen return value
+;			rdi: input pointer (*s) / malloc size param / destination pointer (*return)
+;			rsi: source pointer
+;			rcx: loop counter
 ; prototype: char *strdup(const char *s)
 ;
 ; Like with libft I will calculate length, mallocate memory and copy s to that memory.
 
 ft_strdup:
-	mov		rax, 0			; Initialise accumulator to 0
+	push	rdi					; Push rdi to stack to save through calls.
 
 ft_strlenCall:
-	push	rdi				; Push rdi to stack to save for future
-	call	ft_strlen		; Call ft_strlen() with rdi as parameter, output to rax
+	call	ft_strlen			; Call ft_strlen, rdi is parameter, output to rax.
+	push	rax					; Push rax to stack to save through calls.
 
 mallocCall:
 	mov		rdi, rax			; Move length count to rdi. malloc() parameter
 	inc		rdi					; Increment rdi to account for \0 terminator
+	sub		rsp, 8				; Align stack to 16 bytes for the call
 	call	malloc wrt ..plt	; Call malloc(), if successful pointer to memory
 								;	is in rax. If not, rax is zero.
 								;	Using wrt ..plt again to prevent the PIE issue.
-	pop		rdi					; Restore rdi as we are done with it
-	cmp		rax, 0				; Check malloc result for null
-	je		mallocError			; If null, jump to error handling
+	add		rsp, 8				; Restore stack alignment after call.
+	cmp		rax, 0				; Check malloc result for null.
+	je		mallocError			; If null, jump to error handling.
 
-ft_strcpyCall:
-	mov		rsi, rdi			; Move rdi to rsi to satisfy ft_strcpy's params
-	mov		rdi, rax			; Move mallocated address to rdi
-	call	ft_strcpy			; Call ft_strcpy with rdi and rsi. Return to rax
+copyPrep:
+	pop		rcx					; Pop the length to rcx, loop counter parameter.
+	pop		rsi					; Move original string pointer to rsi for copying.
+	push	rax					; Push the malloc returned pointer back to stack.
+	mov		rdi, rax			; Move malloc returned pointer to rdi for copying.
+	test	rcx, rcx			; Test if string length is zero (but not null).
+	je		done				; If length is zero, skip copy loop.
 
-finished:
-	ret							; Return rax
+copyLoop:
+	mov		dl, [rsi]			; Copy byte from source (rsi) to dest (rdi) via dl.
+	mov		[rdi], dl
+	inc		rsi					; Increment source and destination pointers
+	inc		rdi
+	loop	copyLoop			; Loop until rcx is zero.
+done:
+	mov		byte [rdi], 0		; Set null terminator at string end.
+	pop		rax					; Restore return pointer.
+	ret
 
 mallocError:
+	add		rsp, 16				; Remove saved original pointer and saved length.
 	mov		rax, 0				; On error set rax to 0. malloc() itself sets errno.
 	ret							; Return rax
+
+section .note.GNU-stack noalloc noexec nowrite progbits

@@ -37,3 +37,5 @@ finished:
 	mov BYTE [rdi + rax], 0		; Add null terminator to last byte
 	mov rax, rdi				; Copy pointer at rdi to rax for return
 	ret							; Return the pointer to dest in rax
+
+section .note.GNU-stack noalloc noexec nowrite progbits

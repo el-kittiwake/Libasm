@@ -20,3 +20,5 @@ increment:
 
 finished:
 	ret							; Return the length of the string in rax
+
+section .note.GNU-stack noalloc noexec nowrite progbits

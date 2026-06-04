@@ -41,3 +41,5 @@ subtract:
 
 finished:
 	ret								; Return the difference in rax
+
+section .note.GNU-stack noalloc noexec nowrite progbits

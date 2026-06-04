@@ -26,7 +26,7 @@ errCheck:
 	cmp		rax, -4095			; Check if rax is in the error range (-1 to -4095)
 								; For sys_write, a simple negative check would be OK,
 								; 	but that is not common practice
-	jbe		finished			; If below -4095 unsigned, it's a valid return value
+	jb		finished			; If below -4095 unsigned, it's a valid return value
 								; 	return the value in rax. Otherwise, fall through
 								; 	to set errno and return -1
 
@@ -41,3 +41,5 @@ setError:
 
 finished:
 	ret							; Return the result of the syscall in rax
+
+section .note.GNU-stack noalloc noexec nowrite progbits

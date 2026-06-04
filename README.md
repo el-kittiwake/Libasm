@@ -16,6 +16,34 @@ The main advantage of using assembly is that it gives the programmer precise, sp
 
 Higher-level programming languages such as C, Fortran, Python and so on trade this precise control for compatibility over a wider range of architectures. They lose performance, but they gain the ability to "easily" move programs between different systems.
 
+## Building the project
+
+Build the library and the test executable with:
+
+```bash
+make        # for mandatory
+make bonus  # for bonus
+```
+
+Then run the test program with:
+
+```bash
+./libasm_tests        # for mandatory
+./libasm_tests_bonus  # for bonus
+```
+
+To remove object files:
+
+```bash
+make clean
+```
+
+To remove all build outputs:
+
+```bash
+make fclean
+```
+
 ## The task at hand
 
 According to the subject we have to recreate several libc functions in assembly language.
@@ -396,6 +424,57 @@ call    ft_strlen
 call    ft_strcpy
 ```
 
+###### Stack alignment
+
+The System V ABI requires that before any `call` the stack is aligned to 16 byte chunks. Meaning that `rsp % 16 == 0`. `rsp` is the stack pointer.
+
+The problem is, general purpose registers are 8-byte, so each push has the potential to result in the state `rsp % 16 == 8`. This is a stack misalignment and can result in unexpected behaviour.
+
+On program start the stack is aligned. On the initial call to main, the stack becomes misaligned. This happens because the return address has been pushed to the stack.
+
+```
+program start:  rsp % 16 == 0   aligned
+call main:      rsp % 16 == 8   return address pushed, misaligned
+push:           rsp % 16 == 0   aligned
+push:           rsp % 16 == 8   misaligned
+push:           rsp % 16 == 0   aligned
+```
+
+In order to alleviate this, before a `call`, if the stack would be misaligned either another push needs to be made or the stack pointer needs shifting down by 8 bytes.
+
+``` asm
+push    reg         ; rsp misaligned
+sub     rsp, 8      ; pad the stack by shifting down 8 bytes
+call    sys_func
+add     rsp, 8      ; remove padding
+pop     reg
+```
+
+###### The loop function
+
+A legacy instruction that uses the `rcx` register as a counter and takes a label as its only operand. Each time the instruction is executed the register is decremented and the label is jumped to.
+
+``` asm
+    mov     rcx, 5
+.top:
+    ...             ; body executes 5 times
+    loop    .top
+```
+
+This method is not as fast as `dec rcx` and `jnz .top`.
+
+###### The test function
+
+This instruction performs a bitwise AND of its operands. Setting RFLAGS with the result. The operands are not changed.
+
+``` asm
+test    rcx, rcx    ; AND rcx with itself
+                    ; ZF=1 if rcx == 0
+                    ; SF=1 if rcx is negative
+```
+
+This is actually preferred over `cmp rcx, 0` as it results in a shorter encoded sequence in memory.
+
 ###### Testing malloc() failure with LD_PRELOAD
 
 Using a shared library that temporarily replaces malloc(). The following C code "replaces" malloc.
@@ -533,5 +612,5 @@ STACK (after prologue)                LOOKUP TABLE  [rsp .. rsp+255]
 
 Two pertinent new instructions are used in this process.
 
-- `rep`: repeats its operand the number of times stored in register `rcx`.
+- `rep`: repeats its operand the number of times stored in register `rcx`. This is only valid for string operations.
 - `stosb`: stores byte value in register `al` to location in register `rdi`. Increments `rdi` by one after it completes.
