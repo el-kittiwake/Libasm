@@ -147,4 +147,4 @@ convertNumber:
 	add		rax, rcx
 	jmp		checkNumberEndIncrement
 
-section .note.GNU-stack noalloc noexec nowrite progbits
+section .note.GNU-stack noexec

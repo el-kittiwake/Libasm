@@ -38,4 +38,4 @@ finished:
 	mov rax, rdi				; Copy pointer at rdi to rax for return
 	ret							; Return the pointer to dest in rax
 
-section .note.GNU-stack noalloc noexec nowrite progbits
+section .note.GNU-stack noexec

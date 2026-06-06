@@ -140,6 +140,8 @@ Everything at this point is new.
 
 `ft_strlen:`: a label that can be used to jump to or in this case as a global export
 
+`section .note.GNU-stack noexec`: This tells the linker that the assembly file does not need an executable stack. The `section .note.GNU-stack` on its own would be fine, but adding `noexec` makes the intent clear.
+
 ###### Registers
 
 x86-64 has 16 general purpose registers: `rax`, `rbx`, `rcx`, `rdx`, `rsi`, `rdi`, `rsp`, `rbp`, and `r8` to `r15`. These are all 64-bits (8 bytes) wide.
@@ -150,7 +152,7 @@ Most instructions operate on these registers either directly on the data they st
 
 `mov rax, 0`
 
-- `mov`: move data instruction (actually copies from source to destination, leaving the source unchanged)
+- `mov`: move data instruction (actually copies from source to destination, leaving the source unchanged). Intel syntax dictates that the first operand is destination and the second source.
 
 ###### Register bytes
 
@@ -345,7 +347,7 @@ Make a syscall to sys_write (ID: 1) with the arguments passed to the function. I
 
 `-4095`: The limit of the error number range in Linux. All errnos have to fit within -1 and -4095.
 
-`jbe`: jump if below or equal. This is the unsigned version of `jle`.
+`jb`: jump if below. This is the unsigned version of `jl`.
 
 Initially I was thinking to simply check if the `syscall` return in `rax` was negative and then follow the setError path. However, after some reading about how Linux handles errors it seems that this can lead to false results for some edge cases.
 

@@ -54,4 +54,4 @@ mallocError:
 	mov		rax, 0				; On error set rax to 0. malloc() itself sets errno.
 	ret							; Return rax
 
-section .note.GNU-stack noalloc noexec nowrite progbits
+section .note.GNU-stack noexec
